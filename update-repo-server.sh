@@ -1,0 +1,41 @@
+i#!/usr/bin/env bash
+set -e
+
+KEY_ID="9684CA65197ED120FAEF68D54D84EB67B458B8C2"
+TARGET_DIR="packages/x86_64"
+
+cd "$TARGET_DIR"
+
+echo ">>> Signing packages"
+rm -f *.pkg.tar.zst.sig
+
+for pkg in *.pkg.tar.zst; do
+    if [ -f "$pkg" ]; then
+        echo "Signing $pkg..."
+        gpg --detach-sign --batch --yes --default-key "$KEY_ID" "$pkg"
+    fi
+done
+
+echo ">>> Updating repo.db..."
+repo-add --sign --key "$KEY_ID" unios-repo.db.tar.gz *.pkg.tar.zst
+
+echo ">>> 3. Creating hard copies and not symlinks"
+rm -f unios-repo.db unios-repo.db.sig unios-repo.files unios-repo.files.sig
+cp unios-repo.db.tar.gz unios-repo.db
+cp unios-repo.db.tar.gz.sig unios-repo.db.sig
+cp unios-repo.files.tar.gz unios-repo.files
+cp unios-repo.files.tar.gz.sig unios-repo.files.sig
+
+cd ../..
+
+echo ">>> 4. Pushing to GitHub..."
+eval "$(ssh-agent -s)"
+ssh-add /home/pkgbuilder/.ssh/githubKey
+
+git add .
+git commit -m "repo: update package database"
+git push origin main
+
+echo ">>> Database was updated!"
+
+
